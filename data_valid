@@ -1,0 +1,41 @@
+DECLARE @TableName varchar(100),
+        @Schema varchar(100),
+        @DateColumn varchar(100),
+        @DateField datetime2,
+        @DateFieldTo datetime2,
+        @RowCountCheck int,
+        @PkColumns varchar(500)
+    BEGIN
+        DECLARE @RowCount int,
+                @RowCountPk int,
+                @Sql varchar(500),
+                @RowValidation int=1,
+                @PkUniqueCheck int=1
+        set @Sql='select '+@RowCount+'=Count(*) FROM '+@Schema+'.'+@TableName+' where '+@DateColumn+' BETWEEN '+@DateField+' AND '+@DateFieldTo
+        exec @Sql
+        IF @RowCount<@RowCountCheck
+            BEGIN
+                set RowValidation=0
+            END
+        set @Sql='SELECT '+@RowCountPk+'=COUNT(*) FROM (select DISTINCT'+@PkColumns+' FROM '+@Schema+'.'+@TableName+' where '+@DateColumn+' BETWEEN '+@DateField+' AND '+@DateFieldTo+')'
+        exec @Sql
+        IF @RowCountPk<@RowCount
+            BEGIN
+                set PkUniqueCheck=0
+            END
+        IF OBJECT_ID ('tempdb..#Nulls') IS NOT NULL DROP TABLE #Nulls
+        CREATE TABLE #Nulls (TableName sysname, ColumnName sysname , ColumnPosition int ,NullCount int , NonNullCount int)
+
+        SELECT @sql += 'SELECT  '''+TABLE_NAME+''' AS TableName , '''+COLUMN_NAME+''' AS ColumnName,  '''+CONVERT(VARCHAR(5),ORDINAL_POSITION)+''' AS ColumnPosition, SUM(CASE WHEN '+COLUMN_NAME+' IS NULL THEN 1 ELSE 0 END) CountNulls , COUNT(' +COLUMN_NAME+') CountnonNulls FROM '+QUOTENAME(TABLE_SCHEMA)+'.'+QUOTENAME(TABLE_NAME)+';'+ CHAR(10)
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = @Schema
+        AND TABLE_NAME = @TableName
+
+        INSERT INTO #Nulls 
+        EXEC sp_executesql @sql
+
+        SELECT * 
+        FROM #Nulls
+
+        DROP TABLE #Nulls
+    end
