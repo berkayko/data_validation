@@ -1,10 +1,10 @@
-DECLARE @TableName varchar(100),
-        @Schema varchar(100),
-        @DateColumn varchar(100),
-        @DateField datetime2,
-        @DateFieldTo datetime2,
-        @RowCountCheck int,
-        @PkColumns varchar(500)
+DECLARE @TableName varchar(100),--table name
+        @Schema varchar(100),--schema name
+        @DateColumn varchar(100),--date column name
+        @DateField datetime2,--date value
+        @DateFieldTo datetime2,--range date value
+        @RowCountCheck int,--expected row count value
+        @PkColumns varchar(500)--pk columns to be checked ex:'ID,date'
     BEGIN
         DECLARE @RowCount int,
                 @RowCountPk int,
