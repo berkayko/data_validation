@@ -36,6 +36,6 @@ DECLARE @TableName varchar(100),--table name
 
         SELECT * 
         FROM #Nulls
-
+        
         DROP TABLE #Nulls
     end
