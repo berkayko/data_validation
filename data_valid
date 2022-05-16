@@ -11,8 +11,9 @@ DECLARE @TableName varchar(100),--table name
                 @Sql varchar(500),
                 @RowValidation int=1,
                 @PkUniqueCheck int=1
-        set @Sql='select '+@RowCount+'=Count(*) FROM '+@Schema+'.'+@TableName+' where '+@DateColumn+' BETWEEN '+@DateField+' AND '+@DateFieldTo
-        exec @Sql
+        set @Sql='select @RowCount=Count(*) FROM @Schema.@TableName where @DateColumn BETWEEN @DateField AND @DateFieldTo'
+        set @ParamDefinition=N'@RowCount int output,@Schema varchar(100),@TableName varchar(100),@DateField datetime2,@DateFieldTo datetime2,@DateColumn varchar(100)'
+        exec sp_executesql @Sql,@ParamDefinition,@RowCount=@RowCount OUTPUT,@Schema=@Schema,@TableName=@TableName,@DateField=@DateField,@DateFieldTo=@DateFieldTo,@DateColumn=@DateColumn
         IF @RowCount<@RowCountCheck
             BEGIN
                 set RowValidation=0
@@ -26,13 +27,13 @@ DECLARE @TableName varchar(100),--table name
         IF OBJECT_ID ('tempdb..#Nulls') IS NOT NULL DROP TABLE #Nulls
         CREATE TABLE #Nulls (TableName sysname, ColumnName sysname , ColumnPosition int ,NullCount int , NonNullCount int)
 
-        SELECT @sql += 'SELECT  '''+TABLE_NAME+''' AS TableName , '''+COLUMN_NAME+''' AS ColumnName,  '''+CONVERT(VARCHAR(5),ORDINAL_POSITION)+''' AS ColumnPosition, SUM(CASE WHEN '+COLUMN_NAME+' IS NULL THEN 1 ELSE 0 END) CountNulls , COUNT(' +COLUMN_NAME+') CountnonNulls FROM '+QUOTENAME(TABLE_SCHEMA)+'.'+QUOTENAME(TABLE_NAME)+';'+ CHAR(10)
+        SELECT @Sql = 'SELECT  '''+TABLE_NAME+''' AS TableName , '''+COLUMN_NAME+''' AS ColumnName,  '''+CONVERT(VARCHAR(5),ORDINAL_POSITION)+''' AS ColumnPosition, SUM(CASE WHEN '+COLUMN_NAME+' IS NULL THEN 1 ELSE 0 END) CountNulls , COUNT(' +COLUMN_NAME+') CountnonNulls FROM '+QUOTENAME(TABLE_SCHEMA)+'.'+QUOTENAME(TABLE_NAME)+';'+ CHAR(10)
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = @Schema
         AND TABLE_NAME = @TableName
 
         INSERT INTO #Nulls 
-        EXEC sp_executesql @sql
+        EXEC sp_executesql @Sql
 
         SELECT * 
         FROM #Nulls

@@ -1,0 +1,18 @@
+DECLARE @TableName varchar(100),--table name
+        @Schema varchar(100),--schema name
+        @DateColumn varchar(100),--date column name
+        @DateField datetime2,--date value
+        @DateFieldTo datetime2,--range date value
+        @RowCountCheck int,--expected row count value
+        @PkColumns varchar(500)--pk columns to be checked ex:'ID,date'
+    BEGIN
+        DECLARE @RowCount int,
+                @RowCountPk int,
+                @Sql varchar(500),
+                @RowValidation int=1,
+                @PkUniqueCheck int=1
+        set @Sql='select @RowCount=Count(*) FROM @Schema.@TableName where @DateColumn BETWEEN @DateField AND @DateFieldTo'
+        set @ParamDefinition=N'@RowCount int output,@Schema varchar(100),@TableName varchar(100),@DateField datetime2,@DateFieldTo datetime2,@DateColumn varchar(100)'
+        exec sp_executesql @Sql,@ParamDefinition,@RowCount=@RowCount OUTPUT,@Schema=@Schema,@TableName=@TableName,@DateField=@DateField,@DateFieldTo=@DateFieldTo,@DateColumn=@DateColumn
+        select @RowCountCheck as "Expected Row Count",@RowCount as "Row Count"
+    end
