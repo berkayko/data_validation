@@ -8,14 +8,16 @@ DECLARE @TableName varchar(100),--table name
     BEGIN
         DECLARE @RowCount int,
                 @RowCountPk int,
+                @NonPkRowCount int,
                 @Sql nvarchar(500),
                 @RowValidation int=1,
                 @PkUniqueCheck int=1,
-                @ParamDefinition nvarchar(max)
+                @ParamDefinition nvarchar(max),
+                @ColumnName sysname,
+                @Columns nvarchar(100)=''
         IF OBJECT_ID ('tempdb..#Nulls') IS NOT NULL DROP TABLE #PkCols
-        CREATE TABLE #PkCols (ColumnName sysname )
-        --INSERT PRIMARY KEY VALUES
-        INSERT INTO #PkCols
+        CREATE TABLE #PkCols with(DISTRIBUTION=ROUND_ROBIN)
+        AS
         select C.COLUMN_NAME FROM  
         INFORMATION_SCHEMA.TABLE_CONSTRAINTS T  
         JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE C  
@@ -24,5 +26,92 @@ DECLARE @TableName varchar(100),--table name
         C.TABLE_NAME=@TableName
         and C.TABLE_SCHEMA=@Schema
         and T.CONSTRAINT_TYPE='PRIMARY KEY'
-
+        DECLARE @counter int = 1
+        DECLARE @recordCount int = (SELECT COUNT(1) from #PkCols)
+        -- Loop through records in Temp table
+        WHILE @counter <= @recordCount 
+        BEGIN  
+            IF @counter=1
+                BEGIN
+                SET @name = (SELECT [COLUMN_NAME]
+                    FROM(SELECT *, ROW_NUMBER() OVER(ORDER BY [COLUMN_NAME]) AS RN
+                    FROM #PkCols) as T
+                    WHERE RN = @counter)
+                END
+            ELSE
+                BEGIN
+                    SET @name +=','+ (SELECT [COLUMN_NAME]
+                    FROM(SELECT *, ROW_NUMBER() OVER(ORDER BY [COLUMN_NAME]) AS RN
+                    FROM #PkCols) as T
+                    WHERE RN = @counter)
+                END
+                END
+            SET @counter = @counter + 1
+        END
+/*         declare @CursorPk=CURSOR for select ColumnName from #PkCols
+        OPEN @CursorPk;
+        FETCH NEXT FROM @CursorPk
+        INTO @ColumnName
+        WHILE @@FETCH_STATUS=0
+        BEGIN
+            if @Columns=''
+                BEGIN
+                    @Columns=@ColumnName
+                     end
+            ELSE
+                BEGIN
+                    @Columns+=','+@ColumnName
+                END
+        FETCH NEXT FROM @CursorPk
+        INTO @ColumnName
+        END
+        CLOSE @CursorPk
+        DEALLOCATE @CursorPk */
+        SET @Sql='SELECT '+@RowCountPk+'= COUNT(*) FROM (SELECT DISTINCT '+@Columns+'FROM @Schema.@TableName where '+@DateColumn+' BETWEEN CONVERT(VARCHAR(23),@DateField,126) AND CONVERT(VARCHAR(23),@DateFieldTo,126))'
+        set @ParamDefinition=N'@RowCountPk int output,@Schema varchar(100),@TableName varchar(100),@DateField datetime2,@DateFieldTo datetime2,@DateColumn varchar(100)'
+        exec sp_executesql @Sql,@ParamDefinition,@RowCountPk=@RowCountPk OUTPUT,@Schema=@Schema,@TableName=@TableName,@DateField=@DateField,@DateFieldTo=@DateFieldTo,@DateColumn=@DateColumn
+        --DROP TABLE #Nulls
+        IF OBJECT_ID ('tempdb..#NonPkCols') IS NOT NULL DROP TABLE #NonPkCols
+        CREATE TABLE #NonPkCols with(DISTRIBUTION=ROUND_ROBIN)
+        AS
+        SELECT A.COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS A
+        WHERE A.TABLE_SCHEMA=@Schema
+        AND A.TABLE_NAME=@TableName
+        AND A.COLUMN_NAME NOT IN
+        (select C.COLUMN_NAME FROM  
+        INFORMATION_SCHEMA.TABLE_CONSTRAINTS T  
+        JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE C  
+        ON C.CONSTRAINT_NAME=T.CONSTRAINT_NAME  
+        WHERE  
+        C.TABLE_NAME=@TableName
+        and C.TABLE_SCHEMA=@Schema
+        and T.CONSTRAINT_TYPE='PRIMARY KEY'
+        UNION
+        SELECT COLUMN_NAME FROM #ColException)
+         -- Loop through records in Temp table
+        SET @counter=1
+        SET @recordCount=(SELECT COUNT(1) FROM #NonPkCols)
+        WHILE @counter <= @recordCount 
+        BEGIN  
+            IF @counter=1
+                BEGIN
+                SET @name = (SELECT [COLUMN_NAME]
+                    FROM(SELECT *, ROW_NUMBER() OVER(ORDER BY [COLUMN_NAME]) AS RN
+                    FROM #NonPkCols) as T
+                    WHERE RN = @counter)
+                END
+            ELSE
+                BEGIN
+                    SET @name +=','+ (SELECT [COLUMN_NAME]
+                    FROM(SELECT *, ROW_NUMBER() OVER(ORDER BY [COLUMN_NAME]) AS RN
+                    FROM #NonPkCols) as T
+                    WHERE RN = @counter)
+                END
+                END
+            SET @counter = @counter + 1
+        END
+        SET @Sql='SELECT '+@NonPkRowCount+'= COUNT(*) FROM (SELECT DISTINCT '+@Columns+'FROM @Schema.@TableName where '+@DateColumn+' BETWEEN CONVERT(VARCHAR(23),@DateField,126) AND CONVERT(VARCHAR(23),@DateFieldTo,126))'
+        set @ParamDefinition=N'@NonPkRowCount int output,@Schema varchar(100),@TableName varchar(100),@DateField datetime2,@DateFieldTo datetime2,@DateColumn varchar(100)'
+        exec sp_executesql @Sql,@ParamDefinition,@NonPkRowCount=@NonPkRowCount OUTPUT,@Schema=@Schema,@TableName=@TableName,@DateField=@DateField,@DateFieldTo=@DateFieldTo,@DateColumn=@DateColumn
+        select @RowCountPk as 'Distinct Pk row Count',@NonPkRowCount as "non pk distinct row count",@RowCount as "non distinct row count"
     end
