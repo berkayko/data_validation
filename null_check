@@ -1,0 +1,28 @@
+DECLARE @TableName varchar(100),--table name
+        @Schema varchar(100),--schema name
+        @DateColumn varchar(100),--date column name
+        @DateField datetime2,--date value
+        @DateFieldTo datetime2,--range date value
+        @RowCountCheck int,--expected row count value
+        @PkColumns varchar(500)--pk columns to be checked ex:'ID,date'
+    BEGIN
+        DECLARE @RowCount int,
+                @RowCountPk int,
+                @Sql nvarchar(500),
+                @RowValidation int=1,
+                @PkUniqueCheck int=1,
+                @ParamDefinition nvarchar(max)
+        IF OBJECT_ID ('tempdb..#Nulls') IS NOT NULL DROP TABLE #PkCols
+        CREATE TABLE #PkCols (ColumnName sysname )
+        --INSERT PRIMARY KEY VALUES
+        INSERT INTO #PkCols
+        select C.COLUMN_NAME FROM  
+        INFORMATION_SCHEMA.TABLE_CONSTRAINTS T  
+        JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE C  
+        ON C.CONSTRAINT_NAME=T.CONSTRAINT_NAME  
+        WHERE  
+        C.TABLE_NAME=@TableName
+        and C.TABLE_SCHEMA=@Schema
+        and T.CONSTRAINT_TYPE='PRIMARY KEY'
+
+    end
