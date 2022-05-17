@@ -15,7 +15,7 @@ DECLARE @TableName varchar(100),--table name
                 @ParamDefinition nvarchar(max),
                 @ColumnName sysname,
                 @Columns nvarchar(100)=''
-        IF OBJECT_ID ('tempdb..#Nulls') IS NOT NULL DROP TABLE #PkCols
+        IF OBJECT_ID ('tempdb..#PkCols') IS NOT NULL DROP TABLE #PkCols
         CREATE TABLE #PkCols with(DISTRIBUTION=ROUND_ROBIN)
         AS
         select C.COLUMN_NAME FROM  

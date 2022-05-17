@@ -1,0 +1,53 @@
+DECLARE @TableName varchar(100),--table name
+        @Schema varchar(100),--schema name
+        @DateColumn varchar(100),--date column name
+        @DateField datetime2,--date value
+        @DateFieldTo datetime2,--range date value
+        @RowCountCheck int,--expected row count value
+        @PkColumns varchar(500)--pk columns to be checked ex:'ID,date'
+    BEGIN
+        DECLARE @RowCount int,
+                @RowCountPk int,
+                @NonPkRowCount int,
+                @Sql nvarchar(500),
+                @RowValidation int=1,
+                @PkUniqueCheck int=1,
+                @ParamDefinition nvarchar(max),
+                @ColumnName sysname,
+                @Columns nvarchar(100)=''
+        IF OBJECT_ID ('tempdb..#NonPkCols') IS NOT NULL DROP TABLE #NonPkCols
+        CREATE TABLE #NonPkCols with(DISTRIBUTION=ROUND_ROBIN)
+        AS
+        SELECT A.COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS A
+        WHERE A.TABLE_SCHEMA=@Schema
+        AND A.TABLE_NAME=@TableName
+        AND A.COLUMN_NAME NOT IN
+        (select C.COLUMN_NAME FROM  
+        INFORMATION_SCHEMA.TABLE_CONSTRAINTS T  
+        JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE C  
+        ON C.CONSTRAINT_NAME=T.CONSTRAINT_NAME  
+        WHERE  
+        C.TABLE_NAME=@TableName
+        and C.TABLE_SCHEMA=@Schema
+        and T.CONSTRAINT_TYPE='PRIMARY KEY'
+        UNION
+        SELECT COLUMN_NAME FROM #ColException)
+         -- Loop through records in Temp table
+        SET @counter=1
+        SET @recordCount=(SELECT COUNT(1) FROM #NonPkCols)
+        DECLARE @name VARCHAR(100)
+        IF OBJECT_ID ('tempdb..#NullCount') IS NOT NULL DROP TABLE #NullCount
+        CREATE TABLE (count int,name varchar(100))
+        WHILE @counter <= @recordCount 
+            BEGIN
+                    SET @name = (SELECT [COLUMN_NAME]
+                    FROM(SELECT *, ROW_NUMBER() OVER(ORDER BY [COLUMN_NAME]) AS RN
+                    FROM #NonPkCols) as T
+                    WHERE RN = @counter)
+                    set @Sql='select @RowCount=Count(*) FROM @Schema.@TableName where '+@name+' IS NULL AND '+@DateColumn+ ' BETWEEN CONVERT(VARCHAR(23),@DateField,126) AND CONVERT(VARCHAR(23),@DateFieldTo,126)'
+                    set @ParamDefinition=N'@RowCount int output,@Schema varchar(100),@TableName varchar(100),@DateField datetime2,@DateFieldTo datetime2,@DateColumn varchar(100)'
+                    exec sp_executesql @Sql,@ParamDefinition,@RowCount=@RowCount OUTPUT,@Schema=@Schema,@TableName=@TableName,@DateField=@DateField,@DateFieldTo=@DateFieldTo,@DateColumn=@DateColumn
+                    insert into(count,name) values(@RowCount,@name)
+                    SET @counter = @counter + 1
+            END
+        END
